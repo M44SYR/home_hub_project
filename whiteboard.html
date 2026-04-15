@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Whiteboard</title>
+
+  <style>
+    :root{
+      --bg:#101318;
+      --panel:#1b212b;
+      --panel2:#252d39;
+      --panel3:#313b4a;
+      --border:#445064;
+      --text:#eef4ff;
+      --muted:#b4c0d3;
+      --accent:#6ea8fe;
+      --danger:#ef5350;
+      --ok:#66bb6a;
+    }
+
+    *{
+      box-sizing:border-box;
+      -webkit-tap-highlight-color:transparent;
+    }
+
+    html,body{
+      margin:0;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Arial,Helvetica,sans-serif;
+    }
+
+    #app{
+      width:100%;
+      height:100%;
+      display:grid;
+      grid-template-rows:auto 1fr;
+    }
+
+    #toolbar{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      padding:10px;
+      background:var(--panel);
+      border-bottom:1px solid var(--border);
+      z-index:20;
+    }
+
+    .toolbar-group{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+      padding:6px 8px;
+      background:var(--panel2);
+      border:1px solid var(--border);
+      border-radius:10px;
+    }
+
+    button, select, input[type="color"], input[type="range"], textarea{
+      background:var(--panel3);
+      color:var(--text);
+      border:1px solid var(--border);
+      border-radius:8px;
+      min-height:38px;
+      padding:6px 10px;
+      font-size:14px;
+    }
+
+    button{
+      cursor:pointer;
+      user-select:none;
+    }
+
+    button.active{
+      outline:2px solid var(--accent);
+      background:#465875;
+    }
+
+    button.ok{
+      background:#294132;
+      border-color:#3f6a50;
+    }
+
+    button.warn{
+      background:#482e2e;
+      border-color:#714343;
+    }
+
+    input[type="color"]{
+      width:44px;
+      padding:2px;
+    }
+
+    input[type="range"]{
+      width:120px;
+      padding:0;
+    }
+
+    #status{
+      margin-left:auto;
+      font-size:12px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+
+    #boardWrap{
+      position:relative;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background:#11161d;
+      touch-action:none;
+    }
+
+    #grid{
+      position:absolute;
+      inset:0;
+      background:
+        linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+      background-size:24px 24px;
+      pointer-events:none;
+      z-index:0;
+    }
+
+    #canvasContainer{
+      position:absolute;
+      inset:0;
+      transform-origin:top left;
+      z-index:1;
+    }
+
+    #board{
+      position:absolute;
+      left:0;
+      top:0;
+      display:block;
+      touch-action:none;
+      background:transparent;
+    }
+
+    #stickyLayer{
+      position:absolute;
+      inset:0;
+      z-index:3;
+      pointer-events:none;
+    }
+
+    .sticky{
+      position:absolute;
+      min-width:160px;
+      min-height:120px;
+      width:220px;
+      height:160px;
+      padding:12px;
+      border-radius:10px;
+      box-shadow:0 8px 24px rgba(0,0,0,.35);
+      border:1px solid rgba(0,0,0,.18);
+      color:#222;
+      overflow:hidden;
+      user-select:none;
+      pointer-events:auto;
+    }
+
+    .sticky textarea{
+      width:100%;
+      height:100%;
+      border:none;
+      outline:none;
+      resize:none;
+      background:transparent;
+      color:#222;
+      font:inherit;
+      min-height:80px;
+    }
+
+    .sticky-handle{
+      position:absolute;
+      right:6px;
+      bottom:6px;
+      width:18px;
+      height:18px;
+      border-radius:4px;
+      background:rgba(0,0,0,.15);
+      cursor:nwse-resize;
+    }
+
+    .sticky-close{
+      position:absolute;
+      top:6px;
+      right:6px;
+      width:22px;
+      height:22px;
+      min-height:auto;
+      padding:0;
+      border:none;
+      border-radius:50%;
+      background:rgba(0,0,0,.14);
+      color:#222;
+      font-weight:700;
+    }
+
+    #textOverlay{
+      position:absolute;
+      display:none;
+      z-index:5;
+      min-width:180px;
+      padding:8px;
+      border:1px solid var(--border);
+      border-radius:8px;
+      background:#fff;
+      color:#111;
+      outline:none;
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+
+    #settingsDrawer{
+      position:absolute;
+      top:10px;
+      right:10px;
+      width:min(340px, calc(100vw - 20px));
+      max-height:calc(100% - 20px);
+      overflow:auto;
+      background:rgba(27,33,43,.97);
+      border:1px solid var(--border);
+      border-radius:14px;
+      box-shadow:0 14px 40px rgba(0,0,0,.4);
+      z-index:30;
+      display:none;
+      padding:12px;
+    }
+
+    #settingsDrawer.open{
+      display:block;
+    }
+
+    .drawer-section{
+      margin-bottom:14px;
+      padding-bottom:12px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+
+    .drawer-section:last-child{
+      border-bottom:none;
+      margin-bottom:0;
+      padding-bottom:0;
+    }
+
+    .drawer-title{
+      font-size:13px;
+      color:var(--muted);
+      margin-bottom:8px;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+
+    .drawer-row{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      margin-bottom:8px;
+    }
+
+    .drawer-row label{
+      min-width:72px;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .drawer-row .value{
+      color:var(--text);
+      font-size:13px;
+      min-width:40px;
+    }
+
+    .hidden{
+      display:none !important;
+    }
+
+    @media (max-width: 800px){
+      #toolbar{
+        gap:6px;
+        padding:8px;
+      }
+
+      .toolbar-group{
+        padding:6px;
+      }
+
+      button, select, input[type="color"], input[type="range"]{
+        min-height:34px;
+        font-size:13px;
+        padding:5px 8px;
+      }
+
+      input[type="range"]{
+        width:100px;
+      }
+
+      #status{
+        width:100%;
+        margin-left:0;
+        white-space:normal;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="toolbar">
+      <div class="toolbar-group">
+        <button class="toolBtn active" data-tool="pen">Pen</button>
+        <button class="toolBtn" data-tool="marker">Marker</button>
+        <button class="toolBtn" data-tool="highlighter">Highlight</button>
+        <button class="toolBtn" data-tool="spray">Spray</button>
+        <button class="toolBtn" data-tool="eraser">Eraser</button>
+        <button class="toolBtn" data-tool="line">Line</button>
+        <button class="toolBtn" data-tool="rect">Rect</button>
+        <button class="toolBtn" data-tool="circle">Circle</button>
+        <button class="toolBtn" data-tool="arrow">Arrow</button>
+        <button class="toolBtn" data-tool="text">Text</button>
+        <button class="toolBtn" data-tool="sticky">Sticky</button>
+        <button class="toolBtn" data-tool="stamp">Stamp</button>
+      </div>
+
+      <div class="toolbar-group">
+        <button id="undoBtn">Undo</button>
+        <button id="redoBtn">Redo</button>
+        <button id="saveBtn" class="ok">Save</button>
+        <button id="clearBtn" class="warn">Clear</button>
+      </div>
+
+      <div class="toolbar-group">
+        <button id="gridBtn" class="active">Grid</button>
+        <button id="zoomOutBtn">-</button>
+        <button id="zoomResetBtn">100%</button>
+        <button id="zoomInBtn">+</button>
+      </div>
+
+      <div class="toolbar-group">
+        <button id="settingsBtn">Settings</button>
+      </div>
+
+      <div id="status">Ready</div>
+    </div>
+
+    <div id="boardWrap">
+      <div id="grid"></div>
+      <div id="canvasContainer">
+        <canvas id="board"></canvas>
+        <div id="stickyLayer"></div>
+      </div>
+
+      <textarea id="textOverlay" placeholder="Type text, then tap away…"></textarea>
+
+      <div id="settingsDrawer">
+        <div class="drawer-section">
+          <div class="drawer-title">Current tool</div>
+          <div class="drawer-row">
+            <strong id="currentToolLabel">Pen</strong>
+          </div>
+        </div>
+
+        <div class="drawer-section">
+          <div class="drawer-title">Common</div>
+
+          <div class="drawer-row">
+            <label for="colorPicker">Colour</label>
+            <input id="colorPicker" type="color" value="#ffffff">
+          </div>
+
+          <div class="drawer-row">
+            <label for="sizeRange">Size</label>
+            <input id="sizeRange" type="range" min="1" max="48" value="6">
+            <span class="value" id="sizeValue">6</span>
+          </div>
+
+          <div class="drawer-row">
+            <label for="opacityRange">Opacity</label>
+            <input id="opacityRange" type="range" min="0.05" max="1" step="0.05" value="1">
+            <span class="value" id="opacityValue">1.00</span>
+          </div>
+        </div>
+
+        <div class="drawer-section hidden" id="stampSection">
+          <div class="drawer-title">Stamp</div>
+          <div class="drawer-row">
+            <label for="stampSelect">Stamp</label>
+            <select id="stampSelect">
+              <option value="star">Star</option>
+              <option value="heart">Heart</option>
+              <option value="tick">Tick</option>
+              <option value="cross">Cross</option>
+              <option value="arrowStamp">Arrow</option>
+              <option value="house">House</option>
+              <option value="cart">Cart</option>
+              <option value="bang">!</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="drawer-section hidden" id="shapeSection">
+          <div class="drawer-title">Shape options</div>
+          <div class="drawer-row">
+            <label for="shapeFillToggle">Fill</label>
+            <input id="shapeFillToggle" type="checkbox">
+          </div>
+        </div>
+
+        <div class="drawer-section hidden" id="textSection">
+          <div class="drawer-title">Text</div>
+          <div class="drawer-row">
+            <label for="textSizeRange">Font size</label>
+            <input id="textSizeRange" type="range" min="12" max="72" value="28">
+            <span class="value" id="textSizeValue">28</span>
+          </div>
+        </div>
+
+        <div class="drawer-section hidden" id="stickySection">
+          <div class="drawer-title">Sticky note</div>
+          <div class="drawer-row">
+            <label for="stickyColorPicker">Note colour</label>
+            <input id="stickyColorPicker" type="color" value="#fff59d">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "whiteboard_stable_v2";
+    const MAX_HISTORY = 40;
+
+    const boardWrap = document.getElementById("boardWrap");
+    const canvasContainer = document.getElementById("canvasContainer");
+    const canvas = document.getElementById("board");
+    const ctx = canvas.getContext("2d");
+    const stickyLayer = document.getElementById("stickyLayer");
+    const textOverlay = document.getElementById("textOverlay");
+    const gridEl = document.getElementById("grid");
+
+    const settingsBtn = document.getElementById("settingsBtn");
+    const settingsDrawer = document.getElementById("settingsDrawer");
+    const currentToolLabel = document.getElementById("currentToolLabel");
+    const statusEl = document.getElementById("status");
+
+    const colorPicker = document.getElementById("colorPicker");
+    const sizeRange = document.getElementById("sizeRange");
+    const sizeValue = document.getElementById("sizeValue");
+    const opacityRange = document.getElementById("opacityRange");
+    const opacityValue = document.getElementById("opacityValue");
+
+    const stampSelect = document.getElementById("stampSelect");
+    const shapeFillToggle = document.getElementById("shapeFillToggle");
+    const textSizeRange = document.getElementById("textSizeRange");
+    const textSizeValue = document.getElementById("textSizeValue");
+    const stickyColorPicker = document.getElementById("stickyColorPicker");
+
+    const stampSection = document.getElementById("stampSection");
+    const shapeSection = document.getElementById("shapeSection");
+    const textSection = document.getElementById("textSection");
+    const stickySection = document.getElementById("stickySection");
+
+    const undoBtn = document.getElementById("undoBtn");
+    const redoBtn = document.getElementById("redoBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const gridBtn = document.getElementById("gridBtn");
+    const zoomOutBtn = document.getElementById("zoomOutBtn");
+    const zoomResetBtn = document.getElementById("zoomResetBtn");
+    const zoomInBtn = document.getElementById("zoomInBtn");
+    const toolButtons = [...document.querySelectorAll(".toolBtn")];
+
+    let tool = "pen";
+    let drawing = false;
+    let startPoint = null;
+    let previewImage = null;
+    let zoom = 1;
+    let undoStack = [];
+    let redoStack = [];
+    let stickyNotes = [];
+    let stickyIdCounter = 1;
+    let textTarget = null;
+
+    function setStatus(text){
+      statusEl.textContent = text;
+    }
+
+    function resizeCanvas(){
+      const h = boardWrap.clientHeight;
+      const w = boardWrap.clientWidth;
+      const old = canvas.toDataURL("image/png");
+
+      canvas.width = w;
+      canvas.height = h;
+      stickyLayer.style.width = w + "px";
+      stickyLayer.style.height = h + "px";
+
+      if (old && old !== "data:,"){
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0);
+        img.src = old;
+      }
+    }
+
+    function screenToCanvas(clientX, clientY){
+      const rect = boardWrap.getBoundingClientRect();
+      return {
+        x: (clientX - rect.left) / zoom,
+        y: (clientY - rect.top) / zoom
+      };
+    }
+
+    function setTool(nextTool){
+      tool = nextTool;
+      toolButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.tool === nextTool));
+      updateSettingsDrawer();
+      setStatus(`${nextTool} selected`);
+    }
+
+    function updateSettingsDrawer(){
+      currentToolLabel.textContent = tool.charAt(0).toUpperCase() + tool.slice(1);
+      stampSection.classList.toggle("hidden", tool !== "stamp");
+      shapeSection.classList.toggle("hidden", !["line","rect","circle","arrow"].includes(tool));
+      textSection.classList.toggle("hidden", tool !== "text");
+      stickySection.classList.toggle("hidden", tool !== "sticky");
+    }
+
+    function applyStrokeStyle(){
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      if (tool === "eraser"){
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "rgba(0,0,0,1)";
+        ctx.lineWidth = parseInt(sizeRange.value, 10);
+        return;
+      }
+
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = colorPicker.value;
+      ctx.globalAlpha = parseFloat(opacityRange.value);
+
+      if (tool === "pen"){
+        ctx.lineWidth = parseInt(sizeRange.value, 10);
+      } else if (tool === "marker"){
+        ctx.lineWidth = parseInt(sizeRange.value, 10) * 1.7;
+        ctx.globalAlpha *= 0.75;
+      } else if (tool === "highlighter"){
+        ctx.lineWidth = parseInt(sizeRange.value, 10) * 3;
+        ctx.globalAlpha = Math.min(0.35, parseFloat(opacityRange.value) * 0.35);
+      } else {
+        ctx.lineWidth = parseInt(sizeRange.value, 10);
+      }
+    }
+
+    function saveSnapshot(){
+      undoStack.push(JSON.stringify(exportState()));
+      if (undoStack.length > MAX_HISTORY) undoStack.shift();
+      redoStack = [];
+    }
+
+    function exportState(){
+      return {
+        canvas: canvas.toDataURL("image/png"),
+        zoom,
+        gridVisible: !gridEl.hidden,
+        stickyIdCounter,
+        stickyNotes: stickyNotes.map(n => ({
+          id:n.id, x:n.x, y:n.y, w:n.w, h:n.h, text:n.text, color:n.color
+        }))
+      };
+    }
+
+    async function importState(state){
+      stickyLayer.innerHTML = "";
+      stickyNotes = [];
+      stickyIdCounter = state.stickyIdCounter || 1;
+
+      await new Promise(resolve => {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        if (!state.canvas){
+          resolve();
+          return;
+        }
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img,0,0);
+          resolve();
+        };
+        img.src = state.canvas;
+      });
+
+      (state.stickyNotes || []).forEach(note => createSticky(note));
+      zoom = state.zoom || 1;
+      applyZoom();
+      gridEl.hidden = state.gridVisible === false;
+      gridBtn.classList.toggle("active", !gridEl.hidden);
+    }
+
+    function saveBoard(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(exportState()));
+      setStatus("Saved");
+    }
+
+    async function loadBoard(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw){
+        setStatus("Ready");
+        return;
+      }
+      try{
+        await importState(JSON.parse(raw));
+        setStatus("Loaded saved board");
+      }catch(err){
+        console.error(err);
+        setStatus("Load failed");
+      }
+    }
+
+    function applyZoom(){
+      canvasContainer.style.transform = `scale(${zoom})`;
+      zoomResetBtn.textContent = `${Math.round(zoom * 100)}%`;
+    }
+
+    function drawSpray(x, y){
+      const density = 16 + parseInt(sizeRange.value, 10);
+      const radius = parseInt(sizeRange.value, 10) * 1.6;
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = colorPicker.value;
+      ctx.globalAlpha = parseFloat(opacityRange.value) * 0.7;
+      for (let i = 0; i < density; i++){
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * radius;
+        const px = x + Math.cos(angle) * dist;
+        const py = y + Math.sin(angle) * dist;
+        ctx.beginPath();
+        ctx.arc(px, py, Math.max(1, parseInt(sizeRange.value, 10) / 10), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawArrowLine(x1, y1, x2, y2){
+      const headLen = Math.max(12, parseInt(sizeRange.value, 10) * 2.2);
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 7), y2 - headLen * Math.sin(angle - Math.PI / 7));
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 7), y2 - headLen * Math.sin(angle + Math.PI / 7));
+      ctx.stroke();
+    }
+
+    function capturePreviewBase(){
+      previewImage = new Image();
+      previewImage.src = canvas.toDataURL("image/png");
+    }
+
+    function restorePreviewBase(){
+      if (!previewImage) return;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(previewImage,0,0);
+    }
+
+    function drawStamp(type, x, y){
+      const size = Math.max(26, parseInt(sizeRange.value, 10) * 4);
+
+      ctx.save();
+      ctx.globalCompositeOperation = "source-over";
+      ctx.globalAlpha = parseFloat(opacityRange.value);
+      ctx.fillStyle = colorPicker.value;
+      ctx.strokeStyle = colorPicker.value;
+      ctx.lineWidth = Math.max(2, parseInt(sizeRange.value, 10) / 2);
+
+      if (type === "star"){
+        ctx.beginPath();
+        const spikes = 5;
+        let rot = Math.PI / 2 * 3;
+        const outer = size / 2;
+        const inner = outer / 2;
+        ctx.moveTo(x, y - outer);
+        for (let i = 0; i < spikes; i++){
+          ctx.lineTo(x + Math.cos(rot) * outer, y + Math.sin(rot) * outer);
+          rot += Math.PI / spikes;
+          ctx.lineTo(x + Math.cos(rot) * inner, y + Math.sin(rot) * inner);
+          rot += Math.PI / spikes;
+        }
+        ctx.closePath();
+        ctx.fill();
+      } else if (type === "heart"){
+        ctx.beginPath();
+        const s = size / 2.2;
+        ctx.moveTo(x, y + s / 2);
+        ctx.bezierCurveTo(x + s * 1.2, y - s * 0.5, x + s * 1.2, y - s * 1.6, x, y - s * 0.6);
+        ctx.bezierCurveTo(x - s * 1.2, y - s * 1.6, x - s * 1.2, y - s * 0.5, x, y + s / 2);
+        ctx.fill();
+      } else if (type === "tick"){
+        ctx.beginPath();
+        ctx.moveTo(x - size * 0.35, y);
+        ctx.lineTo(x - size * 0.08, y + size * 0.28);
+        ctx.lineTo(x + size * 0.38, y - size * 0.32);
+        ctx.stroke();
+      } else if (type === "cross"){
+        ctx.beginPath();
+        ctx.moveTo(x - size * 0.35, y - size * 0.35);
+        ctx.lineTo(x + size * 0.35, y + size * 0.35);
+        ctx.moveTo(x + size * 0.35, y - size * 0.35);
+        ctx.lineTo(x - size * 0.35, y + size * 0.35);
+        ctx.stroke();
+      } else if (type === "arrowStamp"){
+        drawArrowLine(x - size * 0.45, y, x + size * 0.45, y);
+      } else if (type === "house"){
+        ctx.beginPath();
+        ctx.moveTo(x - size * 0.4, y + size * 0.25);
+        ctx.lineTo(x - size * 0.4, y - size * 0.1);
+        ctx.lineTo(x, y - size * 0.45);
+        ctx.lineTo(x + size * 0.4, y - size * 0.1);
+        ctx.lineTo(x + size * 0.4, y + size * 0.25);
+        ctx.closePath();
+        ctx.stroke();
+      } else if (type === "cart"){
+        ctx.beginPath();
+        ctx.moveTo(x - size * 0.35, y - size * 0.15);
+        ctx.lineTo(x + size * 0.22, y - size * 0.15);
+        ctx.lineTo(x + size * 0.12, y + size * 0.12);
+        ctx.lineTo(x - size * 0.28, y + size * 0.12);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x - size * 0.18, y + size * 0.22, size * 0.06, 0, Math.PI * 2);
+        ctx.arc(x + size * 0.05, y + size * 0.22, size * 0.06, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (type === "bang"){
+        ctx.font = `${size}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("!", x, y);
+      }
+
+      ctx.restore();
+    }
+
+    function insertTextAt(x, y){
+      textTarget = { x, y };
+      textOverlay.style.display = "block";
+      textOverlay.style.left = (x * zoom) + "px";
+      textOverlay.style.top = (y * zoom) + "px";
+      textOverlay.value = "";
+      textOverlay.focus();
+      setStatus("Enter text");
+    }
+
+    function commitText(){
+      if (!textTarget) return;
+      const text = textOverlay.value.trim();
+      textOverlay.style.display = "none";
+
+      if (text){
+        saveSnapshot();
+        ctx.save();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = parseFloat(opacityRange.value);
+        ctx.fillStyle = colorPicker.value;
+        ctx.font = `${parseInt(textSizeRange.value,10)}px Arial`;
+
+        const lines = text.split("\n");
+        lines.forEach((line, i) => {
+          ctx.fillText(line, textTarget.x, textTarget.y + i * (parseInt(textSizeRange.value,10) + 6));
+        });
+
+        ctx.restore();
+        saveBoard();
+      }
+
+      textTarget = null;
+    }
+
+    function createSticky(note){
+      const data = {
+        id: note.id || stickyIdCounter++,
+        x: note.x ?? 120,
+        y: note.y ?? 120,
+        w: note.w ?? 220,
+        h: note.h ?? 160,
+        text: note.text ?? "New note",
+        color: note.color ?? stickyColorPicker.value
+      };
+
+      const el = document.createElement("div");
+      el.className = "sticky";
+      el.style.left = data.x + "px";
+      el.style.top = data.y + "px";
+      el.style.width = data.w + "px";
+      el.style.height = data.h + "px";
+      el.style.background = data.color;
+      el.dataset.id = data.id;
+
+      const close = document.createElement("button");
+      close.className = "sticky-close";
+      close.textContent = "×";
+      close.type = "button";
+
+      const ta = document.createElement("textarea");
+      ta.value = data.text;
+
+      const handle = document.createElement("div");
+      handle.className = "sticky-handle";
+
+      el.appendChild(close);
+      el.appendChild(ta);
+      el.appendChild(handle);
+      stickyLayer.appendChild(el);
+
+      const model = {
+        id:data.id, x:data.x, y:data.y, w:data.w, h:data.h, text:data.text, color:data.color, el, ta
+      };
+      stickyNotes.push(model);
+
+      let dragMode = null;
+      let startMouse = null;
+      let startNote = null;
+
+      function syncModel(){
+        model.x = parseFloat(el.style.left);
+        model.y = parseFloat(el.style.top);
+        model.w = parseFloat(el.style.width);
+        model.h = parseFloat(el.style.height);
+        model.text = ta.value;
+      }
+
+      el.addEventListener("pointerdown", (e) => {
+        if (e.target === ta || e.target === close) return;
+        e.stopPropagation();
+        saveSnapshot();
+
+        dragMode = e.target === handle ? "resize" : "move";
+        startMouse = { x:e.clientX, y:e.clientY };
+        startNote = { x:model.x, y:model.y, w:model.w, h:model.h };
+        el.setPointerCapture(e.pointerId);
+      });
+
+      el.addEventListener("pointermove", (e) => {
+        if (!dragMode) return;
+        e.stopPropagation();
+
+        const dx = (e.clientX - startMouse.x) / zoom;
+        const dy = (e.clientY - startMouse.y) / zoom;
+
+        if (dragMode === "move"){
+          el.style.left = (startNote.x + dx) + "px";
+          el.style.top = (startNote.y + dy) + "px";
+        } else {
+          el.style.width = Math.max(120, startNote.w + dx) + "px";
+          el.style.height = Math.max(90, startNote.h + dy) + "px";
+        }
+      });
+
+      el.addEventListener("pointerup", () => {
+        if (!dragMode) return;
+        dragMode = null;
+        syncModel();
+        saveBoard();
+      });
+
+      ta.addEventListener("input", () => {
+        model.text = ta.value;
+        saveBoard();
+      });
+
+      close.addEventListener("click", (e) => {
+        e.stopPropagation();
+        saveSnapshot();
+        stickyNotes = stickyNotes.filter(n => n.id !== model.id);
+        el.remove();
+        saveBoard();
+      });
+
+      return model;
+    }
+
+    function startDrawing(e){
+      if (textOverlay.style.display === "block"){
+        commitText();
+      }
+
+      const pt = screenToCanvas(e.clientX, e.clientY);
+
+      if (tool === "stamp"){
+        saveSnapshot();
+        drawStamp(stampSelect.value, pt.x, pt.y);
+        saveBoard();
+        setStatus("Stamp placed");
+        return;
+      }
+
+      if (tool === "sticky"){
+        saveSnapshot();
+        createSticky({
+          x: pt.x,
+          y: pt.y,
+          color: stickyColorPicker.value
+        });
+        saveBoard();
+        setStatus("Sticky note added");
+        return;
+      }
+
+      if (tool === "text"){
+        insertTextAt(pt.x, pt.y);
+        return;
+      }
+
+      drawing = true;
+      startPoint = pt;
+
+      saveSnapshot();
+
+      if (["line","rect","circle","arrow"].includes(tool)){
+        capturePreviewBase();
+        return;
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(pt.x, pt.y);
+
+      if (tool === "spray"){
+        drawSpray(pt.x, pt.y);
+      }
+    }
+
+    function moveDrawing(e){
+      if (!drawing) return;
+      const pt = screenToCanvas(e.clientX, e.clientY);
+
+      if (tool === "spray"){
+        drawSpray(pt.x, pt.y);
+        return;
+      }
+
+      if (["line","rect","circle","arrow"].includes(tool)){
+        restorePreviewBase();
+        ctx.save();
+        applyStrokeStyle();
+
+        if (tool === "line"){
+          ctx.beginPath();
+          ctx.moveTo(startPoint.x, startPoint.y);
+          ctx.lineTo(pt.x, pt.y);
+          ctx.stroke();
+        } else if (tool === "rect"){
+          const w = pt.x - startPoint.x;
+          const h = pt.y - startPoint.y;
+          if (shapeFillToggle.checked){
+            ctx.fillStyle = colorPicker.value;
+            ctx.globalAlpha = parseFloat(opacityRange.value) * 0.2;
+            ctx.fillRect(startPoint.x, startPoint.y, w, h);
+            ctx.globalAlpha = parseFloat(opacityRange.value);
+          }
+          ctx.strokeRect(startPoint.x, startPoint.y, w, h);
+        } else if (tool === "circle"){
+          const dx = pt.x - startPoint.x;
+          const dy = pt.y - startPoint.y;
+          const r = Math.sqrt(dx*dx + dy*dy);
+          ctx.beginPath();
+          ctx.arc(startPoint.x, startPoint.y, r, 0, Math.PI * 2);
+          if (shapeFillToggle.checked){
+            ctx.fillStyle = colorPicker.value;
+            ctx.globalAlpha = parseFloat(opacityRange.value) * 0.2;
+            ctx.fill();
+            ctx.globalAlpha = parseFloat(opacityRange.value);
+          }
+          ctx.stroke();
+        } else if (tool === "arrow"){
+          drawArrowLine(startPoint.x, startPoint.y, pt.x, pt.y);
+        }
+
+        ctx.restore();
+        return;
+      }
+
+      ctx.save();
+      applyStrokeStyle();
+      ctx.lineTo(pt.x, pt.y);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.beginPath();
+      ctx.moveTo(pt.x, pt.y);
+    }
+
+    function stopDrawing(){
+      if (!drawing) return;
+      drawing = false;
+      previewImage = null;
+      ctx.beginPath();
+      saveBoard();
+    }
+
+    boardWrap.addEventListener("pointerdown", (e) => {
+      if (settingsDrawer.contains(e.target)) return;
+      if (e.target.closest(".sticky")) return;
+      startDrawing(e);
+    });
+
+    boardWrap.addEventListener("pointermove", moveDrawing);
+    boardWrap.addEventListener("pointerup", stopDrawing);
+    boardWrap.addEventListener("pointerleave", stopDrawing);
+    boardWrap.addEventListener("pointercancel", stopDrawing);
+
+    settingsBtn.addEventListener("click", () => {
+      settingsDrawer.classList.toggle("open");
+    });
+
+    document.addEventListener("pointerdown", (e) => {
+      if (!settingsDrawer.classList.contains("open")) return;
+      if (settingsDrawer.contains(e.target)) return;
+      if (e.target === settingsBtn) return;
+      settingsDrawer.classList.remove("open");
+    });
+
+    textOverlay.addEventListener("blur", commitText);
+
+    toolButtons.forEach(btn => {
+      btn.addEventListener("click", () => setTool(btn.dataset.tool));
+    });
+
+    sizeRange.addEventListener("input", () => sizeValue.textContent = sizeRange.value);
+    opacityRange.addEventListener("input", () => opacityValue.textContent = Number(opacityRange.value).toFixed(2));
+    textSizeRange.addEventListener("input", () => textSizeValue.textContent = textSizeRange.value);
+
+    undoBtn.addEventListener("click", async () => {
+      if (!undoStack.length){
+        setStatus("Nothing to undo");
+        return;
+      }
+      redoStack.push(JSON.stringify(exportState()));
+      await importState(JSON.parse(undoStack.pop()));
+      setStatus("Undo");
+    });
+
+    redoBtn.addEventListener("click", async () => {
+      if (!redoStack.length){
+        setStatus("Nothing to redo");
+        return;
+      }
+      undoStack.push(JSON.stringify(exportState()));
+      await importState(JSON.parse(redoStack.pop()));
+      setStatus("Redo");
+    });
+
+    saveBtn.addEventListener("click", saveBoard);
+
+    clearBtn.addEventListener("click", () => {
+      if (!confirm("Clear the whole board?")) return;
+      saveSnapshot();
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      stickyNotes = [];
+      stickyLayer.innerHTML = "";
+      saveBoard();
+      setStatus("Board cleared");
+    });
+
+    gridBtn.addEventListener("click", () => {
+      gridEl.hidden = !gridEl.hidden;
+      gridBtn.classList.toggle("active", !gridEl.hidden);
+      saveBoard();
+    });
+
+    zoomInBtn.addEventListener("click", () => {
+      zoom = Math.min(3, zoom * 1.1);
+      applyZoom();
+      saveBoard();
+    });
+
+    zoomOutBtn.addEventListener("click", () => {
+      zoom = Math.max(0.5, zoom * 0.9);
+      applyZoom();
+      saveBoard();
+    });
+
+    zoomResetBtn.addEventListener("click", () => {
+      zoom = 1;
+      applyZoom();
+      saveBoard();
+    });
+
+    window.addEventListener("keydown", (e) => {
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && e.key.toLowerCase() === "z"){
+        e.preventDefault();
+        undoBtn.click();
+      } else if (ctrl && e.key.toLowerCase() === "y"){
+        e.preventDefault();
+        redoBtn.click();
+      } else if (e.key === "Escape"){
+        settingsDrawer.classList.remove("open");
+        if (textOverlay.style.display === "block"){
+          textOverlay.style.display = "none";
+          textTarget = null;
+        }
+      }
+    });
+
+    resizeCanvas();
+    applyZoom();
+    sizeValue.textContent = sizeRange.value;
+    opacityValue.textContent = Number(opacityRange.value).toFixed(2);
+    textSizeValue.textContent = textSizeRange.value;
+    loadBoard();
+    setTool("pen");
+  </script>
+</body>
+</html>
