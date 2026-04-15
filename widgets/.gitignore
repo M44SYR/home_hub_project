@@ -1,0 +1,86 @@
+# =========================
+# OS / System files
+# =========================
+.DS_Store
+Thumbs.db
+*.log
+
+# =========================
+# Editor / IDE
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# Node (if you add later)
+# =========================
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# =========================
+# Python (if you use Pi scripts)
+# =========================
+__pycache__/
+*.pyc
+
+# =========================
+# Environment / secrets
+# =========================
+.env
+.env.*
+config.local.json
+secrets.json
+
+# =========================
+# WordPress core (DO NOT TRACK)
+# =========================
+wp-admin/
+wp-includes/
+
+# =========================
+# WordPress content (selective)
+# =========================
+wp-content/uploads/
+wp-content/cache/
+wp-content/upgrade/
+wp-content/backup*
+
+# Plugins & themes (optional strategy)
+# Uncomment if you DON'T want to track them
+# wp-content/plugins/
+# wp-content/themes/
+
+# =========================
+# Database dumps
+# =========================
+*.sql
+*.gz
+*.zip
+
+# =========================
+# Logs
+# =========================
+error_log
+debug.log
+
+# =========================
+# Local server / Pi specific
+# =========================
+*.pid
+*.sock
+
+# =========================
+# Build / temp files
+# =========================
+dist/
+build/
+tmp/
+temp/
+
+# =========================
+# Mac/Linux permissions junk
+# =========================
+*~
